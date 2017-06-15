@@ -28,39 +28,27 @@ class AuthenticatedClient(PublicClient):
         return self.get_account('')
 
     def get_account_history(self, account_id):
-        result = []
         r = requests.get(self.url + '/accounts/{}/ledger'.format(account_id), auth=self.auth)
-        # r.raise_for_status()
-        result.append(r.json())
-        if "cb-after" in r.headers:
-            self.history_pagination(account_id, result, r.headers["cb-after"])
-        return result
+        result = r.json()
 
-    def history_pagination(self, account_id, result, after):
-        r = requests.get(self.url + '/accounts/{}/ledger?after={}'.format(account_id, str(after)), auth=self.auth)
-        # r.raise_for_status()
-        if r.json():
-            result.append(r.json())
-        if "cb-after" in r.headers:
-            self.history_pagination(account_id, result, r.headers["cb-after"])
+        while "cb-after" in r.headers:
+            after = str(r.headers["cb-after"])
+            r = requests.get(self.url + '/accounts/{}/ledger?after={}'.format(account_id, after),
+                             auth=self.auth)
+            if r.json(): result.extend(r.json())
+
         return result
 
     def get_account_holds(self, account_id):
-        result = []
         r = requests.get(self.url + '/accounts/{}/holds'.format(account_id), auth=self.auth)
-        # r.raise_for_status()
-        result.append(r.json())
-        if "cb-after" in r.headers:
-            self.holds_pagination(account_id, result, r.headers["cb-after"])
-        return result
+        result = r.json()
 
-    def holds_pagination(self, account_id, result, after):
-        r = requests.get(self.url + '/accounts/{}/holds?after={}'.format(account_id, str(after)), auth=self.auth)
-        # r.raise_for_status()
-        if r.json():
-            result.append(r.json())
-        if "cb-after" in r.headers:
-            self.holds_pagination(account_id, result, r.headers["cb-after"])
+        while "cb-after" in r.headers:
+            after = str(r.headers["cb-after"])
+            r = requests.get(self.url + '/accounts/{}/holds?after={}'.format(account_id, after),
+                             auth=self.auth)
+            if r.json(): result.extend(r.json())
+
         return result
 
     def buy(self, **kwargs):
@@ -99,55 +87,37 @@ class AuthenticatedClient(PublicClient):
         return r.json()
 
     def get_orders(self):
-        result = []
         r = requests.get(self.url + '/orders/', auth=self.auth)
-        # r.raise_for_status()
-        result.append(r.json())
-        if 'cb-after' in r.headers:
-            self.paginate_orders(result, r.headers['cb-after'])
+        result = r.json()
+
+        while "cb-after" in r.headers:
+            after = str(r.headers["cb-after"])
+            r = requests.get(self.url + '/orders?after={}'.format(after), auth=self.auth)
+            if r.json():
+                result.extend(r.json())
+
         return result
 
-    def paginate_orders(self, result, after):
-        r = requests.get(self.url + '/orders?after={}'.format(str(after)))
-        # r.raise_for_status()
-        if r.json():
-            result.append(r.json())
-        if 'cb-after' in r.headers:
-            self.paginate_orders(result, r.headers['cb-after'])
-        return result
 
-    def get_fills(self, order_id='', product_id='', before='', after='', limit=''):
-        result = []
+    def get_fills(self, order_id=None, product_id=None, limit=None):
         url = self.url + '/fills?'
+
         if order_id:
             url += "order_id={}&".format(str(order_id))
         if product_id:
-            url += "product_id={}&".format(product_id or self.product_id)
-        if before:
-            url += "before={}&".format(str(before))
-        if after:
-            url += "after={}&".format(str(after))
+            url += "product_id={}&".format(str(product_id))
         if limit:
             url += "limit={}&".format(str(limit))
-        r = requests.get(url, auth=self.auth)
-        # r.raise_for_status()
-        result.append(r.json())
-        if 'cb-after' in r.headers and limit is not len(r.json()):
-            return self.paginate_fills(result, r.headers['cb-after'], order_id=order_id, product_id=product_id)
-        return result
 
-    def paginate_fills(self, result, after, order_id='', product_id=''):
-        url = self.url + '/fills?after={}&'.format(str(after))
-        if order_id:
-            url += "order_id={}&".format(str(order_id))
-        if product_id:
-            url += "product_id={}&".format(product_id or self.product_id)
         r = requests.get(url, auth=self.auth)
-        # r.raise_for_status()
-        if r.json():
-            result.append(r.json())
-        if 'cb-after' in r.headers:
-            return self.paginate_fills(result, r.headers['cb-after'], order_id=order_id, product_id=product_id)
+        result = r.json()
+
+        while "cb-after" in r.headers:
+            after = str(r.headers["cb-after"])
+            r = requests.get(url + 'after={}'.format(after), auth=self.auth)
+            if r.json():
+                result.extend(r.json())
+
         return result
 
     def get_fundings(self, result='', status='', after=''):
